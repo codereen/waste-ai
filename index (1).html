@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WasteAI — Real-Time Waste Classifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #3B6D11;
+      --green-light: #EAF3DE;
+      --green-text: #27500A;
+      --amber: #BA7517;
+      --amber-light: #FAEEDA;
+      --amber-text: #633806;
+      --gray: #5F5E5A;
+      --gray-light: #F1EFE8;
+      --gray-text: #2C2C2A;
+      --bg: #f9f9f7;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --text: #1a1a18;
+      --muted: #6b6b67;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--green);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .logo-text { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+    .logo-text span { color: var(--green); }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: var(--bg);
+    }
+
+    main {
+      flex: 1;
+      max-width: 820px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .hero {
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: clamp(22px, 5vw, 32px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .hero p {
+      font-size: 15px;
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #111;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .overlay-idle {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #fff;
+    }
+
+    .overlay-idle svg { opacity: 0.4; width: 48px; height: 48px; }
+    .overlay-idle p { font-size: 14px; opacity: 0.5; }
+
+    .toolbar {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      border-top: 1px solid var(--border);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ccc;
+      flex-shrink: 0;
+    }
+
+    .pulse.live {
+      background: var(--green);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+
+    .pulse.loading { background: var(--amber); }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn:hover { background: var(--bg); }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn.primary {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+    }
+
+    .btn.primary:hover { background: var(--green-text); border-color: var(--green-text); }
+    .btn.danger { background: #fff; color: #A32D2D; border-color: #F7C1C1; }
+    .btn.danger:hover { background: #FCEBEB; }
+
+    .btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .detections {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .det-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      transition: background 0.1s;
+    }
+
+    .det-row:last-child { border-bottom: none; }
+    .det-row:hover { background: var(--bg); }
+
+    .det-obj { font-weight: 500; flex: 1; }
+
+    .pill {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .pill.recycle { background: var(--green-light); color: var(--green-text); }
+    .pill.organic  { background: var(--amber-light); color: var(--amber-text); }
+    .pill.general  { background: var(--gray-light);  color: var(--gray-text);  }
+
+    .conf-bar-wrap {
+      width: 80px;
+      height: 4px;
+      background: var(--bg);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .conf-bar { height: 100%; border-radius: 2px; transition: width 0.3s; }
+    .conf-bar.recycle { background: var(--green); }
+    .conf-bar.organic  { background: var(--amber); }
+    .conf-bar.general  { background: var(--gray);  }
+
+    .conf-pct { font-size: 12px; color: var(--muted); min-width: 32px; text-align: right; }
+
+    .empty-state {
+      padding: 24px 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .leg {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .leg-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    footer a { color: var(--green); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    </div>
+    <span class="logo-text">Waste<span>AI</span></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:var(--green)"></div>Recyclable</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--amber)"></div>Organic</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--gray)"></div>General</div>
+    </div>
+    <span class="badge">Runs 100% in browser</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Real-Time Waste Classifier</h1>
+    <p>Point your camera at any object. TensorFlow.js + COCO-SSD identifies it and tells you how to dispose of it — no data ever leaves your device.</p>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-label">Items detected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--green)" id="stat-recycle">0</div>
+      <div class="stat-label">Recyclable</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--amber)" id="stat-organic">0</div>
+      <div class="stat-label">Organic</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="video-wrap" id="video-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div class="overlay-idle" id="idle-overlay">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <p>Camera is off</p>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="status">
+        <div class="pulse" id="pulse"></div>
+        <span id="status-text">Ready — click to start</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" id="start-btn">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Start camera
+        </button>
+        <button class="btn" id="clear-btn">
+          <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>
+          Reset
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="detections" id="detections">
+      <div class="empty-state" id="empty-state">Start the camera and point it at an object to begin classifying waste.</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Built with <a href="https://www.tensorflow.org/js" target="_blank">TensorFlow.js</a> &amp; COCO-SSD &nbsp;·&nbsp; No data leaves your device &nbsp;·&nbsp; Made for AAI202 @ Torrens University
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+  const WASTE_MAP = {
+    bottle:       { cat:'recycle', label:'Bottle' },
+    cup:          { cat:'recycle', label:'Cup' },
+    'wine glass': { cat:'recycle', label:'Wine glass' },
+    book:         { cat:'recycle', label:'Paper / book' },
+    laptop:       { cat:'general', label:'E-waste — laptop' },
+    'cell phone': { cat:'general', label:'E-waste — phone' },
+    keyboard:     { cat:'general', label:'E-waste — keyboard' },
+    mouse:        { cat:'general', label:'E-waste — mouse' },
+    scissors:     { cat:'general', label:'General waste' },
+    apple:        { cat:'organic', label:'Food scraps' },
+    banana:       { cat:'organic', label:'Food scraps' },
+    orange:       { cat:'organic', label:'Food scraps' },
+    sandwich:     { cat:'organic', label:'Food scraps' },
+    pizza:        { cat:'organic', label:'Food scraps' },
+    cake:         { cat:'organic', label:'Food scraps' },
+    donut:        { cat:'organic', label:'Food scraps' },
+    'hot dog':    { cat:'organic', label:'Food scraps' },
+    broccoli:     { cat:'organic', label:'Food / veg scraps' },
+    carrot:       { cat:'organic', label:'Food / veg scraps' },
+    fork:         { cat:'recycle', label:'Metal utensil' },
+    knife:        { cat:'recycle', label:'Metal utensil' },
+    spoon:        { cat:'recycle', label:'Metal utensil' },
+    bowl:         { cat:'recycle', label:'Glass / ceramic' },
+    vase:         { cat:'recycle', label:'Glass / ceramic' },
+    'potted plant':{ cat:'organic', label:'Garden / plant waste' },
+    backpack:     { cat:'general', label:'General waste' },
+    suitcase:     { cat:'general', label:'General waste' },
+    umbrella:     { cat:'general', label:'General waste' },
+  };
+
+  const CAT = {
+    recycle: { stroke:'#3B6D11', fill:'rgba(59,109,17,0.15)', label:'Recyclable' },
+    organic: { stroke:'#BA7517', fill:'rgba(186,117,23,0.15)', label:'Organic' },
+    general: { stroke:'#5F5E5A', fill:'rgba(95,94,90,0.15)',  label:'General waste' },
+  };
+
+  function classify(cls) {
+    const k = cls.toLowerCase();
+    if (WASTE_MAP[k]) return WASTE_MAP[k];
+    if (/bottle|can|glass|jar|tin|paper|card|plastic|alumin|metal/.test(k)) return { cat:'recycle', label: cls };
+    if (/food|fruit|veg|plant|flower|leaf|banana|apple|orange/.test(k))     return { cat:'organic', label: cls };
+    return { cat:'general', label: cls };
+  }
+
+  const video   = document.getElementById('video');
+  const canvas  = document.getElementById('canvas');
+  const ctx     = canvas.getContext('2d');
+  const startBtn  = document.getElementById('start-btn');
+  const clearBtn  = document.getElementById('clear-btn');
+  const pulse     = document.getElementById('pulse');
+  const statusTxt = document.getElementById('status-text');
+  const detsDiv   = document.getElementById('detections');
+  const emptyDiv  = document.getElementById('empty-state');
+  const idleOvl   = document.getElementById('idle-overlay');
+
+  const statTotal   = document.getElementById('stat-total');
+  const statRecycle = document.getElementById('stat-recycle');
+  const statOrganic = document.getElementById('stat-organic');
+
+  let model = null, stream = null, running = false, raf = null;
+  let counts = { total: 0, recycle: 0, organic: 0 };
+  let lastDetectedKey = '';
+
+  function updateStats(dets) {
+    const valid = dets.filter(d => d.score >= 0.45);
+    const key = valid.map(d => classify(d.class).label).sort().join('|');
+    if (key === lastDetectedKey || key === '') return;
+
+    const added = new Set(key.split('|'));
+    const prev  = lastDetectedKey ? new Set(lastDetectedKey.split('|')) : new Set();
+    lastDetectedKey = key;
+
+    added.forEach(label => {
+      if (prev.has(label)) return;
+      const cat = valid.find(d => classify(d.class).label === label);
+      if (!cat) return;
+      const info = classify(cat.class);
+      counts.total++;
+      if (info.cat === 'recycle') counts.recycle++;
+      if (info.cat === 'organic') counts.organic++;
+    });
+
+    statTotal.textContent   = counts.total;
+    statRecycle.textContent = counts.recycle;
+    statOrganic.textContent = counts.organic;
+  }
+
+  function draw(dets) {
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const valid = dets.filter(d => d.score >= 0.45);
+    valid.forEach(d => {
+      const info = classify(d.class);
+      const c = CAT[info.cat];
+      const [x, y, w, h] = d.bbox;
+      ctx.strokeStyle = c.stroke;
+      ctx.lineWidth = 2.5;
+      ctx.fillStyle = c.fill;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 6);
+      ctx.fill(); ctx.stroke();
+
+      const lbl = info.label + ' ' + Math.round(d.score * 100) + '%';
+      ctx.font = 'bold 13px -apple-system, sans-serif';
+      const tw = ctx.measureText(lbl).width + 12;
+      ctx.fillStyle = c.stroke;
+      ctx.fillRect(x, y - 24, tw, 24);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(lbl, x + 6, y - 7);
+    });
+
+    if (valid.length === 0) {
+      emptyDiv.textContent = 'No waste items detected — try holding up a bottle, can, food item, or book.';
+      if (!emptyDiv.parentNode) detsDiv.appendChild(emptyDiv);
+      detsDiv.querySelectorAll('.det-row').forEach(r => r.remove());
+      return;
+    }
+
+    emptyDiv.remove();
+    const existing = [...detsDiv.querySelectorAll('.det-row')];
+    const labels = valid.map(d => classify(d.class).label + d.score.toFixed(2));
+
+    valid.forEach((d, i) => {
+      const info = classify(d.class);
+      const c = CAT[info.cat];
+      const conf = Math.round(d.score * 100);
+      let row = existing[i];
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'det-row';
+        detsDiv.appendChild(row);
+      }
+      row.innerHTML = `
+        <span class="det-obj">${info.label}</span>
+        <span class="pill ${info.cat}">${c.label}</span>
+        <div class="conf-bar-wrap"><div class="conf-bar ${info.cat}" style="width:${conf}%"></div></div>
+        <span class="conf-pct">${conf}%</span>
+      `;
+    });
+    for (let i = valid.length; i < existing.length; i++) existing[i].remove();
+
+    updateStats(valid);
+  }
+
+  async function detectLoop() {
+    if (!running) return;
+    if (video.readyState >= 2 && model) {
+      const dets = await model.detect(video);
+      draw(dets);
+    }
+    raf = requestAnimationFrame(detectLoop);
+  }
+
+  startBtn.addEventListener('click', async () => {
+    if (running) {
+      running = false;
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+      lastDetectedKey = '';
+      idleOvl.style.display = 'flex';
+      startBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Start camera`;
+      startBtn.className = 'btn primary';
+      pulse.className = 'pulse';
+      statusTxt.textContent = 'Camera stopped';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      detsDiv.querySelectorAll('.det-row').forEach(r => r.remove());
+      if (!emptyDiv.parentNode) detsDiv.appendChild(emptyDiv);
+      emptyDiv.textContent = 'Start the camera and point it at an object to begin classifying waste.';
+      return;
+    }
+
+    startBtn.disabled = true;
+    pulse.className = 'pulse loading';
+    statusTxt.textContent = 'Requesting camera…';
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } } });
+      video.srcObject = stream;
+      await video.play();
+      idleOvl.style.display = 'none';
+
+      if (!model) {
+        statusTxt.textContent = 'Loading AI model (first time may take ~10s)…';
+        model = await cocoSsd.load({ base: 'mobilenet_v2' });
+      }
+
+      running = true;
+      startBtn.disabled = false;
+      startBtn.innerHTML = `<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Stop camera`;
+      startBtn.className = 'btn danger';
+      pulse.className = 'pulse live';
+      statusTxt.textContent = 'Live — point at waste items';
+      detectLoop();
+    } catch (e) {
+      statusTxt.textContent = 'Camera access denied — please allow camera in your browser settings.';
+      pulse.className = 'pulse';
+      startBtn.disabled = false;
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    counts = { total: 0, recycle: 0, organic: 0 };
+    lastDetectedKey = '';
+    statTotal.textContent = statRecycle.textContent = statOrganic.textContent = '0';
+  });
+</script>
+</body>
+</html>
